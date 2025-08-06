@@ -1,0 +1,158 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-background-cream text-text-primary;
+  }
+}
+
+@layer components {
+  .btn-primary {
+    @apply bg-brand-green hover:bg-brand-green-dark text-white font-medium py-2.5 px-4 rounded-button shadow-button transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-ui-focus;
+  }
+  
+  .btn-secondary {
+    @apply bg-background-white hover:bg-ui-hover text-text-secondary font-medium py-2.5 px-4 rounded-button border border-ui-border shadow-button transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-ui-focus;
+  }
+
+  .input-primary {
+    @apply w-full px-4 py-2.5 border border-ui-border rounded-input bg-background-white text-text-primary placeholder-text-light focus:outline-none focus:ring-2 focus:ring-ui-focus focus:border-transparent transition-all duration-200;
+  }
+
+  .link {
+    @apply text-brand-blue hover:text-brand-blue-dark transition-colors duration-200;
+  }
+
+  .card {
+    @apply bg-ui-card border border-ui-border rounded-card shadow-card p-4;
+  }
+
+  .list-item {
+    @apply flex items-center space-x-3 p-4 hover:bg-ui-hover active:bg-ui-active transition-colors duration-200 cursor-pointer border-b border-ui-divider last:border-b-0;
+  }
+
+  .icon-container {
+    @apply w-10 h-10 rounded-xl flex items-center justify-center;
+  }
+
+  .icon-green {
+    @apply bg-brand-green-light/10 text-brand-green;
+  }
+
+  .icon-blue {
+    @apply bg-brand-blue-light/10 text-brand-blue;
+  }
+
+  .icon-orange {
+    @apply bg-brand-orange-light/10 text-brand-orange;
+  }
+
+  .icon-yellow {
+    @apply bg-brand-yellow-light/10 text-brand-yellow;
+  }
+
+  .badge {
+    @apply bg-status-info text-white text-xs px-2 py-1 rounded-full;
+  }
+
+  .switch {
+    @apply relative inline-flex h-6 w-11 items-center rounded-full transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-ui-focus focus:ring-offset-2;
+  }
+
+  .switch[aria-checked="true"] {
+    @apply bg-switch-on;
+  }
+
+  .switch[aria-checked="false"] {
+    @apply bg-switch-track;
+  }
+
+  .switch-thumb {
+    @apply inline-block h-4 w-4 transform rounded-full bg-white transition duration-200;
+  }
+
+  .switch[aria-checked="true"] .switch-thumb {
+    @apply translate-x-6;
+  }
+
+  .switch[aria-checked="false"] .switch-thumb {
+    @apply translate-x-1;
+  }
+
+  .alert-error {
+    @apply bg-status-error/10 text-status-error rounded-lg p-4;
+  }
+
+  .alert-success {
+    @apply bg-status-success/10 text-status-success rounded-lg p-4;
+  }
+
+  .alert-warning {
+    @apply bg-status-warning/10 text-status-warning rounded-lg p-4;
+  }
+
+  .alert-info {
+    @apply bg-status-info/10 text-status-info rounded-lg p-4;
+  }
+
+  /* Toast Styles */
+  .Toastify__toast {
+    @apply bg-background-white border border-ui-border rounded-card shadow-card !important;
+  }
+
+  .Toastify__toast-body {
+    @apply text-text-primary text-sm font-medium !important;
+  }
+
+  .Toastify__toast--success {
+    @apply bg-status-success/10 border-status-success/20 !important;
+  }
+
+  .Toastify__toast--success .Toastify__toast-body {
+    @apply text-status-success !important;
+  }
+
+  .Toastify__toast--error {
+    @apply bg-status-error/10 border-status-error/20 !important;
+  }
+
+  .Toastify__toast--error .Toastify__toast-body {
+    @apply text-status-error !important;
+  }
+
+  .Toastify__toast--warning {
+    @apply bg-status-warning/10 border-status-warning/20 !important;
+  }
+
+  .Toastify__toast--warning .Toastify__toast-body {
+    @apply text-status-warning !important;
+  }
+
+  .Toastify__toast--info {
+    @apply bg-status-info/10 border-status-info/20 !important;
+  }
+
+  .Toastify__toast--info .Toastify__toast-body {
+    @apply text-status-info !important;
+  }
+
+  .Toastify__progress-bar {
+    @apply bg-current opacity-20 !important;
+  }
+
+  .Toastify__close-button {
+    @apply text-current opacity-50 hover:opacity-75 !important;
+  }
+
+  .font-baloo {
+    font-family: 'Baloo Bhaijaan 2', cursive;
+  }
+
+  .font-bangers-regular {
+    font-family: "Bangers", system-ui;
+    font-weight: 400;
+    font-style: normal;
+  }
+} 
