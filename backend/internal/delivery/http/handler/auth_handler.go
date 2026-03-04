@@ -72,6 +72,32 @@ func (h *AuthHandler) Register(c *gin.Context) {
 	})
 }
 
+func (h *AuthHandler) PreLogin(c *gin.Context) {
+	var req domainAuth.LoginRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, dto.Response{
+			Code:    http.StatusBadRequest,
+			Message: err.Error(),
+		})
+		return
+	}
+
+	user, err := h.userUC.GetUserByUsername(c.Request.Context(), req.Username)
+	if err != nil {
+		c.JSON(http.StatusNotFound, dto.Response{
+			Code:    http.StatusNotFound,
+			Message: "User not found",
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, dto.Response{
+		Code:    http.StatusOK,
+		Message: "Pre-login info",
+		Data:    gin.H{"salt": user.Salt},
+	})
+}
+
 func (h *AuthHandler) Login(c *gin.Context) {
 	var req dto.LoginRequest
 
@@ -96,10 +122,10 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		Name:     "token",
 		Value:    token,
 		Path:     "/",
-		Domain:   "",
 		MaxAge:   3600,
-		Secure:   false,
 		HttpOnly: true,
+		Secure:   false,
+		SameSite: http.SameSiteLaxMode,
 	})
 
 	c.JSON(http.StatusOK, dto.Response{

@@ -18,6 +18,7 @@ func NewRouter(authUC auth.AuthUsecase, chatUC chat.ChatUsecase, userUC user.Use
 	{
 		authHandler := handler.NewAuthHandler(authUC, userUC)
 		auth.POST("/check-register", authHandler.CheckRegister)
+		auth.POST("/pre-login", authHandler.PreLogin)
 		auth.POST("/register", authHandler.Register)
 		auth.POST("/login", authHandler.Login)
 	}

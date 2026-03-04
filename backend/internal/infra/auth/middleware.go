@@ -4,6 +4,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/phuongaz/chatchat/pkg/jwt"
@@ -57,6 +58,10 @@ func CORS() gin.HandlerFunc {
 				isAllowed = true
 				break
 			}
+		}
+
+		if strings.HasPrefix(origin, "http://192.168.") || strings.HasPrefix(origin, "https://192.168.") {
+			isAllowed = true
 		}
 
 		// Always allow requests from nginx proxy (no origin header)

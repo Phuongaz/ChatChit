@@ -79,25 +79,25 @@ export function encryptPrivateKey(privateKey, password, salt, iv) {
  */
 export function decryptPrivateKey(encryptedPrivateKey, password, salt, iv) {
   try {
-    // console.log(' decryptPrivateKey called with:');
-    // console.log('encryptedPrivateKey length:', encryptedPrivateKey?.length);
-    // console.log('salt type:', typeof salt, 'value:', salt);
-    // console.log('iv type:', typeof iv, 'value:', iv);
-    
     const key = forge.pkcs5.pbkdf2(password, salt, 10000, 32);
     const decipher = forge.cipher.createDecipher('AES-CBC', key);
     decipher.start({ iv: iv });
     decipher.update(forge.util.createBuffer(forge.util.decode64(encryptedPrivateKey)));
-    decipher.finish();
-    
-    const decryptedData = decipher.output.data;
-    // console.log('Private key decrypted, type:', typeof decryptedData, 'length:', decryptedData.length);
-    // console.log('Decrypted preview:', decryptedData.substring(0, 100) + '...');
-    
+    const pass = decipher.finish();
+
+    if (!pass) {
+      throw new Error('Decryption failed: wrong password or corrupted key data');
+    }
+
+    const decryptedData = decipher.output.bytes();
+
+    if (!decryptedData || !decryptedData.includes('-----BEGIN')) {
+      throw new Error('Decrypted output is not a valid PEM key');
+    }
+
     return decryptedData;
   } catch (error) {
-    // console.error('decryptPrivateKey error:', error);
-    throw new Error('Failed to decrypt private key. Invalid password.');
+    throw new Error('Failed to decrypt private key: ' + error.message);
   }
 }
 

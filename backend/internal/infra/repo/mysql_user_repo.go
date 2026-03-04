@@ -43,6 +43,7 @@ func (r *mysqlUserRepo) FindByUsername(username string) (*user.User, error) {
 	return &user.User{
 		ID:                  userModel.ID.String(),
 		Username:            userModel.Username,
+		Password:            userModel.Password,
 		PublicKey:           userModel.PublicKey,
 		PrivateEncryptedKey: userModel.PrivateEncryptedKey,
 		Salt:                userModel.Salt,
@@ -56,6 +57,7 @@ func (r *mysqlUserRepo) Create(user user.User) error {
 	return r.db.Create(&models.User{
 		ID:                  uuid.New(),
 		Username:            user.Username,
+		Password:            user.Password,
 		PublicKey:           user.PublicKey,
 		PrivateEncryptedKey: user.PrivateEncryptedKey,
 		IV:                  user.IV,

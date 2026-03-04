@@ -32,6 +32,7 @@ type ConversationHistory struct {
 	Username             string     `json:"username"`
 	Messages             []Messages `json:"messages"`
 	LastMessage          string     `json:"last_message"`
+	LastMessageIV        string     `json:"last_message_iv"`
 	LastMessageTimestamp int64      `json:"last_message_timestamp"`
 }
 
@@ -41,6 +42,7 @@ type ChatListItem struct {
 	Username             string `json:"username"`
 	ConversationID       string `json:"conversation_id"`
 	LastMessage          string `json:"last_message"`
+	LastMessageIV        string `json:"iv"`
 	LastMessageTimestamp int64  `json:"last_message_timestamp"`
 	UpdatedAt            string `json:"updated_at"`
 }

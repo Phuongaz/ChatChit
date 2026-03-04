@@ -111,6 +111,7 @@ func (r *mysqlChatRepo) GetConversationHistoryByUserID(userID string) ([]chat.Co
 				ELSE u1.username 
 			END as other_username,
 			COALESCE(m.cipher_text, '') as last_message,
+			COALESCE(m.iv, '') as last_message_iv,
 			COALESCE(m.timestamp, 0) as last_message_timestamp
 		FROM conversations c
 		LEFT JOIN users u1 ON c.user_id1 = u1.id  
@@ -133,20 +134,21 @@ func (r *mysqlChatRepo) GetConversationHistoryByUserID(userID string) ([]chat.Co
 
 	result := make([]chat.ConversationHistory, 0)
 	for rows.Next() {
-		var conversationID, otherUserID, otherUsername, lastMessage string
+		var conversationID, otherUserID, otherUsername, lastMessage, lastMessageIV string
 		var lastMessageTimestamp int64
 
-		err := rows.Scan(&conversationID, &otherUserID, &otherUsername, &lastMessage, &lastMessageTimestamp)
+		err := rows.Scan(&conversationID, &otherUserID, &otherUsername, &lastMessage, &lastMessageIV, &lastMessageTimestamp)
 		if err != nil {
 			continue
 		}
 
 		history := chat.ConversationHistory{
-			ID:                   otherUserID, // Frontend expects user_id here
+			ID:                   otherUserID,
 			ConversationID:       conversationID,
-			Username:             otherUsername,     // Real username from join
-			Messages:             []chat.Messages{}, // Load separately when needed
+			Username:             otherUsername,
+			Messages:             []chat.Messages{},
 			LastMessage:          lastMessage,
+			LastMessageIV:        lastMessageIV,
 			LastMessageTimestamp: lastMessageTimestamp,
 		}
 

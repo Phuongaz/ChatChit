@@ -87,6 +87,7 @@ func (s *chatUsecase) GetChatList(ctx context.Context, userID string) ([]chat.Ch
 			Username:             username,
 			ConversationID:       history.ConversationID,
 			LastMessage:          history.LastMessage,
+			LastMessageIV:        history.LastMessageIV,
 			LastMessageTimestamp: history.LastMessageTimestamp,
 			UpdatedAt:            updatedAt,
 		}

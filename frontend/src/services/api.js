@@ -1,7 +1,7 @@
 import axios from 'axios';
 
 const api = axios.create({
-  baseURL: process.env.REACT_APP_API_URL || 'http://localhost:8089',
+  baseURL: process.env.REACT_APP_API_URL || 'http://192.168.2.10:8089',
   timeout: 10000,
   withCredentials: true,
   headers: {
@@ -9,28 +9,28 @@ const api = axios.create({
   },
 });
 
-api.interceptors.request.use(
-  (config) => {
-    const token = localStorage.getItem('token');
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
-    }
-    return config;
-  },
-  (error) => {
-    return Promise.reject(error);
-  }
-);
+// api.interceptors.request.use(
+//   (config) => {
+//     const token = localStorage.getItem('token');
+//     if (token) {
+//       config.headers.Authorization = `Bearer ${token}`;
+//     }
+//     return config;
+//   },
+//   (error) => {
+//     return Promise.reject(error);
+//   }
+// );
 
-api.interceptors.response.use(
-  (response) => response,
-  (error) => {
-    if (error.response?.status === 401) {
-      window.location.href = '/login';
-    }
-    return Promise.reject(error);
-  }
-);
+// api.interceptors.response.use(
+//   (response) => response,
+//   (error) => {
+//     if (error.response?.status === 401) {
+//       window.location.href = '/login';
+//     }
+//     return Promise.reject(error);
+//   }
+// );
 
 export const authAPI = {
   /**
@@ -46,8 +46,12 @@ export const authAPI = {
     return api.post('/api/auth/register', userData);
   },
 
+  preLogin: (username) => {
+    return api.post('/api/auth/pre-login', { username });
+  },
+
   login: (username, hashedPassword) => {
-    return api.post('/api/auth/login', { username, hashedPassword });
+    return api.post('/api/auth/login', { username, hashed_password: hashedPassword });
   },
 
   logout: () => {

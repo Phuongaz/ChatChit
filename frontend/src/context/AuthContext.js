@@ -83,7 +83,6 @@ export function AuthProvider({ children }) {
   const [iv, setIv] = useState(null);
 
   useEffect(() => {
-   // const token = localStorage.getItem('token');
     const userData = localStorage.getItem('user');
     
     if (userData) {
@@ -97,8 +96,21 @@ export function AuthProvider({ children }) {
             iv: user.iv
           }
         });
+
+        // Restore decrypted private key from sessionStorage (survives refresh, cleared on tab close)
+        const cachedPrivateKey = sessionStorage.getItem('privateKey');
+        if (cachedPrivateKey && cachedPrivateKey.includes('-----BEGIN')) {
+          dispatch({
+            type: AUTH_ACTIONS.SET_PRIVATE_KEY,
+            payload: cachedPrivateKey
+          });
+        } else if (cachedPrivateKey) {
+          // Stale or corrupted value — clear it so a fresh login can repopulate it
+          sessionStorage.removeItem('privateKey');
+        }
       } catch (error) {
         localStorage.removeItem('user');
+        sessionStorage.removeItem('privateKey');
         dispatch({ type: AUTH_ACTIONS.SET_LOADING, payload: false });
       }
     } else {
@@ -111,8 +123,16 @@ export function AuthProvider({ children }) {
     dispatch({ type: AUTH_ACTIONS.LOGIN_START });
     
     try {
-      const hashedPassword = hashPassword(password, username); // Using username as salt for demo
-      
+      // Fetch the user's salt first so we hash with the same salt used at registration
+      const preLoginResponse = await authAPI.preLogin(username);
+      const saltHex = preLoginResponse.data.data?.salt;
+      if (!saltHex) {
+        dispatch({ type: AUTH_ACTIONS.LOGIN_FAILURE });
+        return { success: false, error: 'Could not retrieve login info' };
+      }
+      const binarySalt = forge.util.hexToBytes(saltHex);
+      const hashedPassword = hashPassword(password, binarySalt);
+
       const response = await authAPI.login(username, hashedPassword);
 
       const { user_id, username: returnedUsername, privateEncryptedKey, iv, salt } = response.data.data;
@@ -156,6 +176,7 @@ export function AuthProvider({ children }) {
             binarySalt,
             binaryIV
           );
+          sessionStorage.setItem('privateKey', decryptedPrivateKey);
           dispatch({
             type: AUTH_ACTIONS.SET_PRIVATE_KEY,
             payload: decryptedPrivateKey
@@ -183,6 +204,7 @@ export function AuthProvider({ children }) {
       console.error('Logout error:', error);
     } finally {
       localStorage.removeItem('user');
+      sessionStorage.removeItem('privateKey');
       dispatch({ type: AUTH_ACTIONS.LOGOUT });
     }
   };

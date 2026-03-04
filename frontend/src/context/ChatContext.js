@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useReducer, useCallback, useEffect } from 'react';
+import React, { createContext, useContext, useReducer, useCallback, useEffect, useRef } from 'react';
 import { chatAPI, userAPI } from '../services/api';
 import { 
   generateSharedSecret, 
@@ -93,14 +93,8 @@ const ChatContext = createContext();
 export function ChatProvider({ children }) {
   const [state, dispatch] = useReducer(chatReducer, initialState);
   const { user, privateKey } = useAuth();
-
-  // useEffect(() => {
-  //   if (Notification.permission === 'default') {
-  //     Notification.requestPermission().then(permission => {
-  //       console.log('Notification permission:', permission);
-  //     });
-  //   }
-  // }, []);
+  const wsRef = useRef(null);
+  const handleWebSocketMessageRef = useRef(null);
 
   const loadChats = useCallback(async () => {
     //console.log('loadChats called');
@@ -283,6 +277,32 @@ export function ChatProvider({ children }) {
       console.error('Error handling WebSocket message:', error);
     }
   }, [privateKey, state.currentChat, state.chats, updateChatWithNewMessage]);
+
+  // Keep ref always pointing to latest handler so WS onmessage never goes stale
+  useEffect(() => {
+    handleWebSocketMessageRef.current = handleWebSocketMessage;
+  }, [handleWebSocketMessage]);
+
+  // Create WebSocket connection once per user session
+  useEffect(() => {
+    if (!user?.id || !privateKey) return;
+
+    const apiBase = process.env.REACT_APP_API_URL || 'http://192.168.2.10:8089';
+    const wsBase = apiBase.replace(/^http/, 'ws');
+    const wsUrl = `${wsBase}/api/ws/${user.id}`;
+
+    const ws = new WebSocket(wsUrl);
+    wsRef.current = ws;
+
+    ws.onopen = () => console.log('WebSocket connected');
+    ws.onmessage = (event) => handleWebSocketMessageRef.current(event);
+    ws.onerror = (error) => console.error('WebSocket error:', error);
+    ws.onclose = () => console.log('WebSocket disconnected');
+
+    return () => {
+      ws.close();
+    };
+  }, [user?.id, privateKey]);
 
   const sendMessage = useCallback(async (receiverID, messageText) => {
     if (!privateKey || !user?.id) {

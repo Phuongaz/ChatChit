@@ -23,7 +23,7 @@ export default function RegisterForm({ onToggleForm }) {
   const [errors, setErrors] = useState({});
   const [isGeneratingKeys, setIsGeneratingKeys] = useState(false);
   
-  const { register, checkUsername, isLoading } = useAuth();
+  const { register, checkUsername, login, isLoading } = useAuth();
 
   const validateForm = () => {
     const newErrors = {};
@@ -84,7 +84,7 @@ export default function RegisterForm({ onToggleForm }) {
       const hashedPassword = hashPassword(formData.password, salt);
       
       const encryptedPrivateKey = encryptPrivateKey(privateKey, formData.password, salt, iv);
-      
+
       const registrationData = {
         username: formData.username,
         password: hashedPassword,
@@ -97,8 +97,12 @@ export default function RegisterForm({ onToggleForm }) {
       const result = await register(registrationData);
       
       if (result.success) {
-        toast.success('Đăng ký thành công! Vui lòng đăng nhập.');
-        onToggleForm();
+        toast.success('Đăng ký thành công! Đang đăng nhập...');
+        const loginResult = await login(formData.username, formData.password);
+        if (!loginResult.success) {
+          toast.error(loginResult.error || 'Đăng nhập tự động thất bại, vui lòng đăng nhập thủ công.');
+          onToggleForm();
+        }
       } else {
         toast.error(result.error || 'Đăng ký thất bại');
       }
