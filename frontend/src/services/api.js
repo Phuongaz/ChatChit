@@ -74,6 +74,15 @@ export const userAPI = {
   },
 
   /**
+   * Get user by ID
+   * @param {string} userID
+   * @returns {Promise}
+   */
+  getUserById: (userID) => {
+    return api.get(`/api/user/${userID}`);
+  },
+
+  /**
    * Search users
    * @param {string} query 
    * @returns {Promise}
@@ -108,6 +117,15 @@ export const chatAPI = {
    */
   getChatList: () => {
     return api.get('/api/chat/history');
+  },
+
+  /**
+   * Delete a single message
+   * @param {string} messageID 
+   * @returns {Promise}
+   */
+  deleteMessage: (messageID) => {
+    return api.delete(`/api/chat/message/${messageID}`);
   },
 
   deleteConversation: (conversationID) => {

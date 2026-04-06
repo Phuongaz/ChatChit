@@ -31,6 +31,7 @@ func NewRouter(authUC auth.AuthUsecase, chatUC chat.ChatUsecase, userUC user.Use
 		chat.GET("/history", chatHandler.HistoryChats)
 		chat.GET("/history/:userID", chatHandler.HistoryChatsByUserID)
 		chat.GET("/messages/:conversationID", chatHandler.GetMessagesByConversationID)
+		chat.DELETE("/message/:messageID", chatHandler.DeleteMessage)
 		chat.DELETE("/conversation/:conversationID", chatHandler.DeleteConversation)
 	}
 

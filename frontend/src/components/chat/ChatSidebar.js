@@ -2,9 +2,9 @@ import React, { useEffect, useState } from 'react';
 import { useChat } from '../../context/ChatContext';
 import { useAuth } from '../../context/AuthContext';
 import { userAPI } from '../../services/api';
-import { TrashIcon } from '@heroicons/react/24/outline';
+import { TrashIcon, XMarkIcon } from '@heroicons/react/24/outline';
 
-export default function ChatSidebar() {
+export default function ChatSidebar({ onClose }) {
   const { 
     chats, 
     currentChat, 
@@ -43,7 +43,6 @@ export default function ChatSidebar() {
       const filteredUsers = users.filter(u => u.id !== user?.id);
       setSearchResults(filteredUsers);
     } catch (error) {
-      console.error('Search error:', error);
       setSearchResults([]);
     } finally {
       setIsSearching(false);
@@ -54,7 +53,6 @@ export default function ChatSidebar() {
     e.stopPropagation();
     
     if (!chat.conversation_id) {
-      console.log('No conversation ID to delete');
       return;
     }
     
@@ -65,7 +63,6 @@ export default function ChatSidebar() {
     const result = await deleteConversation(chat.conversation_id);
     
     if (result.success) {
-      console.log('Chat deleted successfully');
       // Remove from chat list
       dispatch({
         type: CHAT_ACTIONS.SET_CHATS,
@@ -119,11 +116,21 @@ export default function ChatSidebar() {
   };
 
   return (
-    <div className="w-80 bg-background-white border-r border-ui-border flex flex-col h-full font-baloo">
+    <div className="w-80 bg-background-white border-r border-ui-border flex flex-col h-full font-baloo md:border-r-0 md:border-l">
       {/* Header */}
-      <div className="p-4 border-b border-ui-border bg-background-white">
-        <h2 className="text-lg font-semibold text-text-primary">Tin nhắn</h2>
-        <div className="mt-3">
+      <div className="p-3 md:p-4 border-b border-ui-border bg-background-white">
+        <div className="flex items-center justify-between mb-2 md:mb-3">
+          <h2 className="text-base md:text-lg font-semibold text-text-primary">Tin nhắn</h2>
+          {onClose && (
+            <button
+              onClick={onClose}
+              className="md:hidden p-2 text-text-light hover:text-text-primary rounded-lg transition-colors"
+            >
+              <XMarkIcon className="h-5 w-5" />
+            </button>
+          )}
+        </div>
+        <div className="mt-2 md:mt-3">
           <input
             type="text"
             placeholder="Tìm kiếm người dùng..."
@@ -144,7 +151,7 @@ export default function ChatSidebar() {
               <div
                 key={user.id}
                 onClick={() => handleUserSelect(user)}
-                className="list-item"
+                className={onClose ? 'mobile-list-item' : 'list-item'}
               >
                 <div className="icon-container icon-blue">
                   <span className="text-sm font-medium">
@@ -179,7 +186,9 @@ export default function ChatSidebar() {
               <div
                 key={chat.user_id}
                 onClick={() => !isDeleting && setCurrentChat(chat)}
-                className={`list-item ${
+                className={`${
+                  onClose ? 'mobile-list-item' : 'list-item'
+                } ${
                   currentChat?.user_id === chat.user_id ? 'bg-ui-active' : ''
                 } ${isDeleting ? 'opacity-50 cursor-not-allowed' : ''}`}
               >

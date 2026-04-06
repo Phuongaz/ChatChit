@@ -33,7 +33,7 @@ export default function MessageList() {
   }
 
   return (
-    <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-ghibli-paper">
+    <div className="flex-1 overflow-y-auto p-3 md:p-4 space-y-3 md:space-y-4 bg-ghibli-paper">
       {messages.length === 0 ? (
         <div className="flex items-center justify-center h-full">
           <div className="text-center">

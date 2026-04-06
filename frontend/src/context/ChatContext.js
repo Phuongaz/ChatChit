@@ -4,9 +4,7 @@ import {
   generateSharedSecret, 
   encryptMessage, 
   decryptMessage, 
-  generateIV,
-  stringToHex,
-  hexToString
+  generateIV
 } from '../utils/crypto';
 import { useAuth } from './AuthContext';
 
@@ -26,6 +24,7 @@ const CHAT_ACTIONS = {
   SET_CURRENT_CHAT: 'SET_CURRENT_CHAT',
   SET_MESSAGES: 'SET_MESSAGES',
   ADD_MESSAGE: 'ADD_MESSAGE',
+  REMOVE_MESSAGE: 'REMOVE_MESSAGE',
   CLEAR_ERROR: 'CLEAR_ERROR',
   ADD_NOTIFICATION: 'ADD_NOTIFICATION',
   CLEAR_NOTIFICATIONS: 'CLEAR_NOTIFICATIONS'
@@ -68,6 +67,11 @@ function chatReducer(state, action) {
         ...state,
         messages: [...state.messages, action.payload]
       };
+    case CHAT_ACTIONS.REMOVE_MESSAGE:
+      return {
+        ...state,
+        messages: state.messages.filter(msg => msg.id !== action.payload)
+      };
     case CHAT_ACTIONS.CLEAR_ERROR:
       return {
         ...state,
@@ -97,7 +101,6 @@ export function ChatProvider({ children }) {
   const handleWebSocketMessageRef = useRef(null);
 
   const loadChats = useCallback(async () => {
-    //console.log('loadChats called');
     dispatch({ type: CHAT_ACTIONS.SET_LOADING, payload: true });
     
     try {
@@ -113,7 +116,6 @@ export function ChatProvider({ children }) {
           const publicKey = publicKeyResponse.data.data?.public_key;
           
           if (!publicKey) {
-            console.warn(`Could not get public key for user ${chat.user_id}`);
             return { ...chat, last_message: '[Tin nhắn được mã hóa]' };
           }
 
@@ -126,7 +128,6 @@ export function ChatProvider({ children }) {
             last_message: decryptedMessage || '[Không thể giải mã]'
           };
         } catch (error) {
-          console.error('Error decrypting last message:', error);
           return { ...chat, last_message: '[Không thể giải mã]' };
         }
       }));
@@ -136,8 +137,6 @@ export function ChatProvider({ children }) {
         payload: decryptedChats
       });
     } catch (error) {
-      console.error('loadChats error:', error);
-      console.error('Error response:', error.response?.data);
       dispatch({
         type: CHAT_ACTIONS.SET_ERROR,
         payload: error.response?.data?.message || 'Failed to load chats'
@@ -158,7 +157,6 @@ export function ChatProvider({ children }) {
       const publicKey = publicKeyResponse.data.data?.public_key;
       
       if (!publicKey) {
-        console.warn(`Could not get public key for user ${userID}`);
         dispatch({ type: CHAT_ACTIONS.SET_MESSAGES, payload: [] });
         return;
       }
@@ -183,7 +181,6 @@ export function ChatProvider({ children }) {
             isDecrypted: true
           };
         } catch (error) {
-          console.error('Error decrypting message:', error);
           return {
             ...msg,
             text: '[Không thể giải mã]',
@@ -195,7 +192,6 @@ export function ChatProvider({ children }) {
 
       dispatch({ type: CHAT_ACTIONS.SET_MESSAGES, payload: decryptedMessages });
     } catch (error) {
-      console.error('Error loading messages:', error);
       dispatch({ type: CHAT_ACTIONS.SET_ERROR, payload: 'Không thể tải tin nhắn' });
     } finally {
       dispatch({ type: CHAT_ACTIONS.SET_LOADING, payload: false });
@@ -222,15 +218,12 @@ export function ChatProvider({ children }) {
   const handleWebSocketMessage = useCallback(async (event) => {
     try {
       const data = JSON.parse(event.data);
-      console.log('📨 Received WebSocket message:', data);
-      
       const { sender_id, receiver_id, cipher_text, timestamp, iv } = data;
       
       const response = await userAPI.getPublicKey(sender_id);
       const publicKey = response.data.data?.public_key;
       
       if (!publicKey) {
-        console.error('Could not get sender public key');
         return;
       }
       
@@ -246,12 +239,38 @@ export function ChatProvider({ children }) {
         isDecrypted: true
       };
 
-      const relevantChat = state.chats.find(chat => 
-        chat.user_id === sender_id || chat.user_id === receiver_id
-      );
+      let relevantChat = state.chats.find(chat => chat.user_id === sender_id);
 
-      if (state.currentChat && state.currentChat.user_id === sender_id) {
+      // If no chat exists with the sender, create a new chat entry
+      if (!relevantChat && sender_id !== user?.id) {
+        try {
+          const userResponse = await userAPI.getUserById(sender_id);
+          const senderUser = userResponse.data.data;
+          
+          const newChat = {
+            user_id: sender_id,
+            username: senderUser.username,
+            conversation_id: null,
+            last_message: decryptedText,
+            last_message_timestamp: timestamp,
+            iv: iv,
+            updated_at: new Date(timestamp * 1000).toISOString()
+          };
+          
+          dispatch({
+            type: CHAT_ACTIONS.SET_CHATS,
+            payload: [newChat, ...state.chats]
+          });
+          
+          relevantChat = newChat;
+        } catch (error) {
+          // Silently fail, chat will be created when user starts conversation
+        }
+      }
+
+      if (state.currentChat?.user_id === sender_id) {
         dispatch({ type: CHAT_ACTIONS.ADD_MESSAGE, payload: newMessage });
+        // Always update chat with new message
         if (relevantChat) {
           updateChatWithNewMessage(relevantChat, data, decryptedText);
         }
@@ -261,6 +280,7 @@ export function ChatProvider({ children }) {
           payload: { senderID: sender_id, message: decryptedText, timestamp }
         });
         
+        // Always update chat with new message, even if not in current view
         if (relevantChat) {
           updateChatWithNewMessage(relevantChat, data, decryptedText);
         }
@@ -274,33 +294,69 @@ export function ChatProvider({ children }) {
         }
       }
     } catch (error) {
-      console.error('Error handling WebSocket message:', error);
+      // Silent fail for malformed messages
     }
-  }, [privateKey, state.currentChat, state.chats, updateChatWithNewMessage]);
+  }, [privateKey, state.chats, updateChatWithNewMessage, user?.id, state.currentChat?.user_id]);
 
   // Keep ref always pointing to latest handler so WS onmessage never goes stale
   useEffect(() => {
     handleWebSocketMessageRef.current = handleWebSocketMessage;
   }, [handleWebSocketMessage]);
 
-  // Create WebSocket connection once per user session
+  // Create WebSocket connection with auto-reconnect
   useEffect(() => {
     if (!user?.id || !privateKey) return;
 
-    const apiBase = process.env.REACT_APP_API_URL || 'http://192.168.2.10:8089';
-    const wsBase = apiBase.replace(/^http/, 'ws');
-    const wsUrl = `${wsBase}/api/ws/${user.id}`;
+    let reconnectAttempts = 0;
+    const maxReconnectAttempts = 10;
+    const baseDelay = 1000; // 1 second
+    let reconnectTimeout;
 
-    const ws = new WebSocket(wsUrl);
-    wsRef.current = ws;
+    const connectWebSocket = () => {
+      const apiBase = process.env.REACT_APP_API_URL || 'http://192.168.2.10:8089';
+      const wsBase = apiBase.replace(/^http/, 'ws');
+      const wsUrl = `${wsBase}/api/ws/${user.id}`;
 
-    ws.onopen = () => console.log('WebSocket connected');
-    ws.onmessage = (event) => handleWebSocketMessageRef.current(event);
-    ws.onerror = (error) => console.error('WebSocket error:', error);
-    ws.onclose = () => console.log('WebSocket disconnected');
+      try {
+        const ws = new WebSocket(wsUrl);
+        wsRef.current = ws;
+
+        ws.onopen = () => {
+          reconnectAttempts = 0; // Reset attempts on successful connection
+        };
+        ws.onmessage = (event) => handleWebSocketMessageRef.current(event);
+        ws.onerror = () => {
+          // Connection error, will trigger onclose
+        };
+        ws.onclose = () => {
+          if (reconnectAttempts < maxReconnectAttempts) {
+            // Exponential backoff with jitter
+            const delay = baseDelay * Math.pow(1.5, reconnectAttempts) + Math.random() * 1000;
+            reconnectTimeout = setTimeout(() => {
+              reconnectAttempts++;
+              connectWebSocket();
+            }, delay);
+          }
+        };
+      } catch (error) {
+        // Silently fail, will retry after delay
+        if (reconnectAttempts < maxReconnectAttempts) {
+          const delay = baseDelay * Math.pow(1.5, reconnectAttempts) + Math.random() * 1000;
+          reconnectTimeout = setTimeout(() => {
+            reconnectAttempts++;
+            connectWebSocket();
+          }, delay);
+        }
+      }
+    };
+
+    connectWebSocket();
 
     return () => {
-      ws.close();
+      if (reconnectTimeout) clearTimeout(reconnectTimeout);
+      if (wsRef.current) {
+        wsRef.current.close();
+      }
     };
   }, [user?.id, privateKey]);
 
@@ -350,7 +406,6 @@ export function ChatProvider({ children }) {
 
       return { success: true };
     } catch (error) {
-      console.error('Error sending message:', error);
       throw new Error(`Failed to send message: ${error.message}`);
     }
   }, [privateKey, user?.id, state.chats, updateChatWithNewMessage]);
@@ -370,9 +425,18 @@ export function ChatProvider({ children }) {
     dispatch({ type: CHAT_ACTIONS.CLEAR_NOTIFICATIONS });
   }, []);
 
+  const deleteMessage = useCallback(async (messageID) => {
+    try {
+      await chatAPI.deleteMessage(messageID);
+      dispatch({ type: CHAT_ACTIONS.REMOVE_MESSAGE, payload: messageID });
+      return { success: true };
+    } catch (error) {
+      return { success: false, error: error.response?.data?.message || error.message };
+    }
+  }, []);
+
   const deleteConversation = useCallback(async (conversationID) => {
     try {
-      console.log('Deleting conversation:', conversationID);
       await chatAPI.deleteConversation(conversationID);
       
       dispatch({
@@ -407,6 +471,7 @@ export function ChatProvider({ children }) {
     loadMessages,
     sendMessage,
     clearNotifications,
+    deleteMessage,
     deleteConversation,
     dispatch,
     CHAT_ACTIONS

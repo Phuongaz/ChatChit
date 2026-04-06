@@ -49,6 +49,15 @@
     @apply bg-brand-orange-light/10 text-brand-orange;
   }
 
+  /* Mobile optimizations */
+  .mobile-list-item {
+    @apply flex items-center space-x-3 p-3 hover:bg-ui-hover active:bg-ui-active transition-colors duration-200 cursor-pointer border-b border-ui-divider last:border-b-0;
+  }
+
+  .mobile-input {
+    @apply w-full px-3 py-2 text-base border border-ui-border rounded-input bg-background-white text-text-primary placeholder-text-light focus:outline-none focus:ring-2 focus:ring-ui-focus focus:border-transparent transition-all duration-200;
+  }
+
   .icon-yellow {
     @apply bg-brand-yellow-light/10 text-brand-yellow;
   }

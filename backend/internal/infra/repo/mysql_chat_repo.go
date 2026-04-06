@@ -172,6 +172,28 @@ func (r *mysqlChatRepo) GetConversationByID(conversationID string) (*chat.Conver
 	}, nil
 }
 
+func (r *mysqlChatRepo) GetMessageByID(messageID string) (*chat.Messages, error) {
+	var message models.Messages
+	err := r.db.Model(&models.Messages{}).Where("id = ?", messageID).First(&message).Error
+	if err != nil {
+		return nil, err
+	}
+
+	return &chat.Messages{
+		ID:             message.ID,
+		ConversationID: message.ConversationID,
+		SenderID:       message.SenderID,
+		ReceiverID:     message.ReceiverID,
+		IV:             message.IV,
+		CipherText:     message.CipherText,
+		Timestamp:      message.Timestamp,
+	}, nil
+}
+
+func (r *mysqlChatRepo) DeleteMessage(messageID string) error {
+	return r.db.Where("id = ?", messageID).Delete(&models.Messages{}).Error
+}
+
 func (r *mysqlChatRepo) DeleteMessagesByConversationID(conversationID string) error {
 	return r.db.Where("conversation_id = ?", conversationID).Delete(&models.Messages{}).Error
 }

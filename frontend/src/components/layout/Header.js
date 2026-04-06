@@ -4,11 +4,12 @@ import {
   UserCircleIcon,
   ArrowRightOnRectangleIcon,
   Cog6ToothIcon,
-  ShieldCheckIcon
+  ShieldCheckIcon,
+  Bars3Icon
 } from '@heroicons/react/24/outline';
 import logo from '../../assets/images/logo.png';
 
-export default function Header() {
+export default function Header({ onMenuClick }) {
   const [showUserMenu, setShowUserMenu] = useState(false);
   const { user, logout } = useAuth();
 
@@ -22,6 +23,14 @@ export default function Header() {
       <div className="flex items-center justify-between">
         {/* Logo and title */}
         <div className="flex items-center space-x-3">
+          {/* Mobile menu button */}
+          <button
+            onClick={onMenuClick}
+            className="md:hidden p-2 text-gray-700 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
+          >
+            <Bars3Icon className="h-6 w-6" />
+          </button>
+          
           <div className="flex items-center justify-center w-8 h-8 bg-primary-600 rounded-lg">
             <img src={logo} alt="ChatChit" className="w-8 h-8" />
           </div>

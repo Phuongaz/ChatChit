@@ -53,7 +53,7 @@ export default function MessageInput() {
   }
 
   return (
-    <div className="border-t border-ui-border bg-background-white p-4">
+    <div className="border-t border-ui-border bg-background-white p-3 md:p-4">
       <form onSubmit={handleSubmit} className="flex items-end space-x-3">
         <div className="flex-1 relative">
           <div className="flex items-end">
@@ -64,7 +64,7 @@ export default function MessageInput() {
                 onChange={(e) => setMessage(e.target.value)}
                 onKeyPress={handleKeyPress}
                 placeholder={`Nhắn tin cho ${currentChat.username}...`}
-                className="input-primary"
+                className="mobile-input font-baloo"
                 rows="1"
                 style={{
                   minHeight: '48px',

@@ -218,11 +218,8 @@ func (h *ChatHandler) DeleteConversation(c *gin.Context) {
 		return
 	}
 
-	//log.Printf("DeleteConversation: User %s requesting to delete conversation %s", userID, conversationID)
-
 	err := h.chatUC.DeleteConversation(c.Request.Context(), conversationID, userID)
 	if err != nil {
-		//log.Printf("DeleteConversation: Failed to delete conversation: %v", err)
 		c.JSON(http.StatusInternalServerError, dto.Response{
 			Code:    http.StatusInternalServerError,
 			Message: err.Error(),
@@ -233,5 +230,48 @@ func (h *ChatHandler) DeleteConversation(c *gin.Context) {
 	c.JSON(http.StatusOK, dto.Response{
 		Code:    http.StatusOK,
 		Message: "Conversation deleted successfully",
+	})
+}
+
+func (h *ChatHandler) DeleteMessage(c *gin.Context) {
+	messageID := c.Param("messageID")
+
+	userIDValue, exists := c.Get("userID")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, dto.Response{
+			Code:    http.StatusUnauthorized,
+			Message: "User not authenticated",
+		})
+		return
+	}
+
+	userID, ok := userIDValue.(string)
+	if !ok {
+		c.JSON(http.StatusInternalServerError, dto.Response{
+			Code:    http.StatusInternalServerError,
+			Message: "Invalid user ID format",
+		})
+		return
+	}
+
+	err := h.chatUC.DeleteMessage(c.Request.Context(), messageID, userID)
+	if err != nil {
+		statusCode := http.StatusInternalServerError
+		if err.Error() == "message not found" {
+			statusCode = http.StatusNotFound
+		} else if err.Error() == "user is not authorized to delete this message" {
+			statusCode = http.StatusForbidden
+		}
+		
+		c.JSON(statusCode, dto.Response{
+			Code:    statusCode,
+			Message: err.Error(),
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, dto.Response{
+		Code:    http.StatusOK,
+		Message: "Message deleted successfully",
 	})
 }

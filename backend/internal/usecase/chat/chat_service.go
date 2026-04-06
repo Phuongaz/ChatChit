@@ -142,3 +142,25 @@ func (s *chatUsecase) DeleteConversation(ctx context.Context, conversationID str
 	log.Printf("Successfully deleted conversation %s and all its messages", conversationID)
 	return nil
 }
+
+func (s *chatUsecase) DeleteMessage(ctx context.Context, messageID string, userID string) error {
+	// Get the message to verify ownership
+	message, err := s.chatRepo.GetMessageByID(messageID)
+	if err != nil {
+		return errors.New("message not found")
+	}
+
+	// Only the sender can delete the message
+	if message.SenderID != userID {
+		return errors.New("user is not authorized to delete this message")
+	}
+
+	// Delete the message
+	err = s.chatRepo.DeleteMessage(messageID)
+	if err != nil {
+		return err
+	}
+
+	log.Printf("Successfully deleted message %s", messageID)
+	return nil
+}

@@ -107,7 +107,6 @@ export default function RegisterForm({ onToggleForm }) {
         toast.error(result.error || 'Đăng ký thất bại');
       }
     } catch (error) {
-      console.error('Registration error:', error);
       toast.error('Lỗi khi tạo khóa mã hóa. Vui lòng thử lại.');
     } finally {
       setIsGeneratingKeys(false);

@@ -11,6 +11,7 @@ type ChatUsecase interface {
 	GetChatList(ctx context.Context, userID string) ([]chat.ChatListItem, error)
 	GetOrCreateConversationID(ctx context.Context, userID1 string, userID2 string) (string, error)
 	GetMessagesByConversationID(ctx context.Context, conversationID string) ([]chat.Messages, error)
+	DeleteMessage(ctx context.Context, messageID string, userID string) error
 	DeleteConversation(ctx context.Context, conversationID string, userID string) error
 }
 
