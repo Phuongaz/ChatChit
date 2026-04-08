@@ -34,34 +34,37 @@ func (h *WebSocketHandler) HandleMessage(c *gin.Context) {
 		log.Printf("Error upgrading to WebSocket: %v", err)
 		return
 	}
+	defer conn.Close()
 
 	userID := c.Param("userID")
 	user, err := h.userUC.GetUserByID(c.Request.Context(), userID)
 	if err != nil {
-		log.Printf("Error getting user: %v", err)
+		log.Printf("WS: user not found for id=%s: %v", userID, err)
+		conn.WriteMessage(websocket.CloseMessage,
+			websocket.FormatCloseMessage(websocket.CloseInternalServerErr, "user not found"))
 		return
 	}
 
 	repo.Manager.AddConnection(user.ID, conn)
-
-	defer func() {
-		repo.Manager.RemoveConnection(userID)
-	}()
+	defer repo.Manager.RemoveConnection(user.ID)
 
 	for {
 		_, msg, err := conn.ReadMessage()
 		if err != nil {
-			log.Printf("Error reading message: %v", err)
+			if !websocket.IsCloseError(err, websocket.CloseNormalClosure, websocket.CloseGoingAway) {
+				log.Printf("WS read error for user %s: %v", user.ID, err)
+			}
 			break
 		}
 
 		var encryptedMsg chat.EncryptedMessage
 		if err := json.Unmarshal(msg, &encryptedMsg); err != nil {
-			log.Printf("Error unmarshalling message: %v", err)
+			log.Printf("WS: failed to unmarshal message from %s: %v", user.ID, err)
+			continue
 		}
 
 		if err := h.chatUC.SendMessage(c.Request.Context(), encryptedMsg); err != nil {
-			log.Printf("Error sending message: %v", err)
+			log.Printf("WS: SendMessage error for user %s: %v", user.ID, err)
 			break
 		}
 	}

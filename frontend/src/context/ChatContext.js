@@ -318,10 +318,14 @@ export function ChatProvider({ children }) {
 
     let reconnectAttempts = 0;
     const maxReconnectAttempts = 10;
-    const baseDelay = 1000; // 1 second
+    const baseDelay = 1000;
     let reconnectTimeout;
+    // Signals that the effect has been cleaned up — prevents reconnect loop
+    let isCleanedUp = false;
 
     const connectWebSocket = () => {
+      if (isCleanedUp) return;
+
       const apiBase = process.env.REACT_APP_API_URL || 'http://192.168.2.10:8089';
       const wsBase = apiBase.replace(/^http/, 'ws');
       const wsUrl = `${wsBase}/api/ws/${user.id}`;
@@ -331,29 +335,34 @@ export function ChatProvider({ children }) {
         wsRef.current = ws;
 
         ws.onopen = () => {
-          reconnectAttempts = 0; // Reset attempts on successful connection
+          if (isCleanedUp) {
+            ws.close();
+            return;
+          }
+          reconnectAttempts = 0;
         };
         ws.onmessage = (event) => handleWebSocketMessageRef.current(event);
-        ws.onerror = () => {
-          // Connection error, will trigger onclose
-        };
+        ws.onerror = () => {};
         ws.onclose = () => {
+          if (isCleanedUp) return;
           if (reconnectAttempts < maxReconnectAttempts) {
-            // Exponential backoff with jitter
             const delay = baseDelay * Math.pow(1.5, reconnectAttempts) + Math.random() * 1000;
             reconnectTimeout = setTimeout(() => {
-              reconnectAttempts++;
-              connectWebSocket();
+              if (!isCleanedUp) {
+                reconnectAttempts++;
+                connectWebSocket();
+              }
             }, delay);
           }
         };
       } catch (error) {
-        // Silently fail, will retry after delay
-        if (reconnectAttempts < maxReconnectAttempts) {
+        if (!isCleanedUp && reconnectAttempts < maxReconnectAttempts) {
           const delay = baseDelay * Math.pow(1.5, reconnectAttempts) + Math.random() * 1000;
           reconnectTimeout = setTimeout(() => {
-            reconnectAttempts++;
-            connectWebSocket();
+            if (!isCleanedUp) {
+              reconnectAttempts++;
+              connectWebSocket();
+            }
           }, delay);
         }
       }
@@ -362,8 +371,11 @@ export function ChatProvider({ children }) {
     connectWebSocket();
 
     return () => {
+      isCleanedUp = true;
       if (reconnectTimeout) clearTimeout(reconnectTimeout);
       if (wsRef.current) {
+        // Remove close handler first so it doesn't trigger a reconnect
+        wsRef.current.onclose = null;
         wsRef.current.close();
       }
     };

@@ -35,23 +35,10 @@ func (s *chatUsecase) SendMessage(ctx context.Context, msg chat.EncryptedMessage
 		return err
 	}
 
-	// Try to send real-time message if receiver is online
-	// Don't return error if receiver is offline - message is already saved
-	log.Printf("Looking for WebSocket connection for receiver: %s", msg.ReceiverID)
-	receiverConn, ok := repo.Manager.GetConnection(msg.ReceiverID)
-	if ok {
-		log.Printf("Found WebSocket connection for %s, sending real-time message", msg.ReceiverID)
-		log.Printf("Sending WebSocket message: SenderID=%s, ReceiverID=%s, CipherText=%s, IV=%s, Timestamp=%d",
-			msg.SenderID, msg.ReceiverID, msg.CipherText, msg.IV, msg.Timestamp)
-		if err := receiverConn.WriteJSON(msg); err != nil {
-			log.Printf("Failed to send real-time message to %s: %v", msg.ReceiverID, err)
-		} else {
-			log.Printf("Successfully sent real-time message to %s", msg.ReceiverID)
-		}
-	} else {
-		log.Printf("Receiver %s is offline, message saved for later delivery", msg.ReceiverID)
-		// List all active connections for debugging
-		log.Printf("Active connections: %v", repo.Manager.ListConnections())
+	// Push real-time message via WebSocket if receiver is online.
+	// Uses thread-safe WriteJSON to prevent concurrent write panics.
+	if err := repo.Manager.WriteJSON(msg.ReceiverID, msg); err != nil {
+		log.Printf("WS push to %s failed (offline or error): %v", msg.ReceiverID, err)
 	}
 
 	return nil
