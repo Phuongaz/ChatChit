@@ -105,7 +105,6 @@ export function AuthProvider({ children }) {
             payload: cachedPrivateKey
           });
         } else if (cachedPrivateKey) {
-          // Stale or corrupted value — clear it so a fresh login can repopulate it
           sessionStorage.removeItem('privateKey');
         }
       } catch (error) {
@@ -146,7 +145,6 @@ export function AuthProvider({ children }) {
         privateEncryptedKey: privateEncryptedKey
       };
       
-
       localStorage.setItem('user', JSON.stringify(user));
       
       dispatch({
@@ -165,10 +163,6 @@ export function AuthProvider({ children }) {
           // Convert hex salt and IV to binary format for decryption
           const binarySalt = forge.util.hexToBytes(salt);
           const binaryIV = forge.util.hexToBytes(iv);
-          
-          console.log('🔓 Decrypting private key with:');
-          console.log('salt (hex):', salt, '-> binary length:', binarySalt.length);
-          console.log('iv (hex):', iv, '-> binary length:', binaryIV.length);
           
           const decryptedPrivateKey = decryptPrivateKey(
             privateEncryptedKey,

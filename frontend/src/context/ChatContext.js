@@ -27,7 +27,10 @@ const CHAT_ACTIONS = {
   REMOVE_MESSAGE: 'REMOVE_MESSAGE',
   CLEAR_ERROR: 'CLEAR_ERROR',
   ADD_NOTIFICATION: 'ADD_NOTIFICATION',
-  CLEAR_NOTIFICATIONS: 'CLEAR_NOTIFICATIONS'
+  CLEAR_NOTIFICATIONS: 'CLEAR_NOTIFICATIONS',
+  // Reducer-level actions that always operate on fresh state (no stale closure)
+  UPDATE_CHAT_LAST_MESSAGE: 'UPDATE_CHAT_LAST_MESSAGE',
+  ADD_CHAT_IF_NOT_EXISTS: 'ADD_CHAT_IF_NOT_EXISTS'
 };
 
 export { CHAT_ACTIONS };
@@ -87,6 +90,21 @@ function chatReducer(state, action) {
         ...state,
         notifications: []
       };
+    // Operates on fresh reducer state — safe from stale closure
+    case CHAT_ACTIONS.UPDATE_CHAT_LAST_MESSAGE:
+      return {
+        ...state,
+        chats: state.chats.map(chat =>
+          chat.user_id === action.payload.userID
+            ? { ...chat, last_message: action.payload.text, last_message_timestamp: action.payload.timestamp, iv: action.payload.iv }
+            : chat
+        )
+      };
+    case CHAT_ACTIONS.ADD_CHAT_IF_NOT_EXISTS:
+      if (state.chats.some(c => c.user_id === action.payload.user_id)) {
+        return state;
+      }
+      return { ...state, chats: [action.payload, ...state.chats] };
     default:
       return state;
   }
@@ -99,6 +117,9 @@ export function ChatProvider({ children }) {
   const { user, privateKey } = useAuth();
   const wsRef = useRef(null);
   const handleWebSocketMessageRef = useRef(null);
+  // Always holds latest state so WS callbacks don't get stale closures
+  const stateRef = useRef(state);
+  useEffect(() => { stateRef.current = state; }, [state]);
 
   const loadChats = useCallback(async () => {
     dispatch({ type: CHAT_ACTIONS.SET_LOADING, payload: true });
@@ -198,38 +219,31 @@ export function ChatProvider({ children }) {
     }
   }, [privateKey, user?.id]);
 
-  const updateChatWithNewMessage = useCallback((chatToUpdate, newMessage, decryptedText) => {
+  // Dispatches reducer action — reducer always sees fresh state, no stale closure
+  const updateChatWithNewMessage = useCallback((userID, newMessage, decryptedText) => {
     dispatch({
-      type: CHAT_ACTIONS.SET_CHATS,
-      payload: state.chats.map(chat => {
-        if (chat.user_id === chatToUpdate.user_id) {
-          return {
-            ...chat,
-            last_message: decryptedText,
-            last_message_timestamp: newMessage.timestamp || Math.floor(Date.now() / 1000),
-            iv: newMessage.iv
-          };
-        }
-        return chat;
-      })
+      type: CHAT_ACTIONS.UPDATE_CHAT_LAST_MESSAGE,
+      payload: {
+        userID,
+        text: decryptedText,
+        timestamp: newMessage.timestamp || Math.floor(Date.now() / 1000),
+        iv: newMessage.iv
+      }
     });
-  }, [state.chats]);
+  }, []);
 
   const handleWebSocketMessage = useCallback(async (event) => {
     try {
       const data = JSON.parse(event.data);
       const { sender_id, receiver_id, cipher_text, timestamp, iv } = data;
-      
-      const response = await userAPI.getPublicKey(sender_id);
-      const publicKey = response.data.data?.public_key;
-      
-      if (!publicKey) {
-        return;
-      }
-      
+
+      const pkResponse = await userAPI.getPublicKey(sender_id);
+      const publicKey = pkResponse.data.data?.public_key;
+      if (!publicKey) return;
+
       const sharedSecret = generateSharedSecret(privateKey, publicKey);
       const decryptedText = decryptMessage(cipher_text, sharedSecret, iv);
-      
+
       const newMessage = {
         id: `${timestamp}${Math.random()}`,
         text: decryptedText,
@@ -239,54 +253,48 @@ export function ChatProvider({ children }) {
         isDecrypted: true
       };
 
-      let relevantChat = state.chats.find(chat => chat.user_id === sender_id);
+      // Read current chats via ref — always fresh, no stale closure
+      const currentChats = stateRef.current.chats;
+      const senderInList = currentChats.some(c => c.user_id === sender_id);
 
-      // If no chat exists with the sender, create a new chat entry
-      if (!relevantChat && sender_id !== user?.id) {
+      // New sender not yet in sidebar — add them
+      if (!senderInList && sender_id !== user?.id) {
         try {
           const userResponse = await userAPI.getUserById(sender_id);
           const senderUser = userResponse.data.data;
-          
-          const newChat = {
-            user_id: sender_id,
-            username: senderUser.username,
-            conversation_id: null,
-            last_message: decryptedText,
-            last_message_timestamp: timestamp,
-            iv: iv,
-            updated_at: new Date(timestamp * 1000).toISOString()
-          };
-          
           dispatch({
-            type: CHAT_ACTIONS.SET_CHATS,
-            payload: [newChat, ...state.chats]
+            type: CHAT_ACTIONS.ADD_CHAT_IF_NOT_EXISTS,
+            payload: {
+              user_id: sender_id,
+              username: senderUser?.username || sender_id.slice(0, 8),
+              conversation_id: null,
+              last_message: decryptedText,
+              last_message_timestamp: timestamp,
+              iv,
+              updated_at: new Date(timestamp * 1000).toISOString()
+            }
           });
-          
-          relevantChat = newChat;
-        } catch (error) {
-          // Silently fail, chat will be created when user starts conversation
-        }
+        } catch (_) { /* ignore, chat will show on next reload */ }
       }
 
-      if (state.currentChat?.user_id === sender_id) {
+      // Update last message preview in sidebar (reducer uses fresh state)
+      dispatch({
+        type: CHAT_ACTIONS.UPDATE_CHAT_LAST_MESSAGE,
+        payload: { userID: sender_id, text: decryptedText, timestamp, iv }
+      });
+
+      // Read currentChat via ref — always fresh
+      const currentChatUserID = stateRef.current.currentChat?.user_id;
+      if (currentChatUserID === sender_id) {
         dispatch({ type: CHAT_ACTIONS.ADD_MESSAGE, payload: newMessage });
-        // Always update chat with new message
-        if (relevantChat) {
-          updateChatWithNewMessage(relevantChat, data, decryptedText);
-        }
       } else {
         dispatch({
           type: CHAT_ACTIONS.ADD_NOTIFICATION,
           payload: { senderID: sender_id, message: decryptedText, timestamp }
         });
-        
-        // Always update chat with new message, even if not in current view
-        if (relevantChat) {
-          updateChatWithNewMessage(relevantChat, data, decryptedText);
-        }
 
         if (Notification.permission === 'granted') {
-          const senderChat = state.chats.find(chat => chat.user_id === sender_id);
+          const senderChat = stateRef.current.chats.find(c => c.user_id === sender_id);
           new Notification('Tin nhắn mới', {
             body: `${senderChat?.username || 'Người dùng'}: ${decryptedText}`,
             icon: '/logo192.png'
@@ -294,9 +302,10 @@ export function ChatProvider({ children }) {
         }
       }
     } catch (error) {
-      // Silent fail for malformed messages
+      console.error('WS message error:', error);
     }
-  }, [privateKey, state.chats, updateChatWithNewMessage, user?.id, state.currentChat?.user_id]);
+  // Only stable deps — state is read via stateRef, not from closure
+  }, [privateKey, user?.id]);
 
   // Keep ref always pointing to latest handler so WS onmessage never goes stale
   useEffect(() => {
@@ -399,16 +408,17 @@ export function ChatProvider({ children }) {
 
       dispatch({ type: CHAT_ACTIONS.ADD_MESSAGE, payload: newMessage });
 
-      const relevantChat = state.chats.find(chat => chat.user_id === receiverID);
-      if (relevantChat) {
-        updateChatWithNewMessage(relevantChat, { ...messageData, timestamp }, messageText);
-      }
+      // UPDATE_CHAT_LAST_MESSAGE runs in reducer with fresh state — no stale closure
+      dispatch({
+        type: CHAT_ACTIONS.UPDATE_CHAT_LAST_MESSAGE,
+        payload: { userID: receiverID, text: messageText, timestamp, iv }
+      });
 
       return { success: true };
     } catch (error) {
       throw new Error(`Failed to send message: ${error.message}`);
     }
-  }, [privateKey, user?.id, state.chats, updateChatWithNewMessage]);
+  }, [privateKey, user?.id]);
 
   const setCurrentChat = useCallback((chat) => {
     dispatch({ type: CHAT_ACTIONS.SET_CURRENT_CHAT, payload: chat });
