@@ -120,6 +120,12 @@ export function ChatProvider({ children }) {
   // Always holds latest state so WS callbacks don't get stale closures
   const stateRef = useRef(state);
   useEffect(() => { stateRef.current = state; }, [state]);
+  // Which thread is open — updated synchronously in setCurrentChat so WS events
+  // that arrive before React commits still route to the correct conversation.
+  const currentOpenChatUserIdRef = useRef(null);
+  useEffect(() => {
+    currentOpenChatUserIdRef.current = state.currentChat?.user_id ?? null;
+  }, [state.currentChat]);
 
   const loadChats = useCallback(async () => {
     dispatch({ type: CHAT_ACTIONS.SET_LOADING, payload: true });
@@ -178,7 +184,9 @@ export function ChatProvider({ children }) {
       const publicKey = publicKeyResponse.data.data?.public_key;
       
       if (!publicKey) {
-        dispatch({ type: CHAT_ACTIONS.SET_MESSAGES, payload: [] });
+        if (currentOpenChatUserIdRef.current === userID) {
+          dispatch({ type: CHAT_ACTIONS.SET_MESSAGES, payload: [] });
+        }
         return;
       }
 
@@ -211,7 +219,37 @@ export function ChatProvider({ children }) {
         }
       }));
 
-      dispatch({ type: CHAT_ACTIONS.SET_MESSAGES, payload: decryptedMessages });
+      function stableMessageKey(m) {
+        const ts = typeof m.timestamp === 'number'
+          ? m.timestamp
+          : Math.floor(new Date(m.created_at).getTime() / 1000);
+        return `${m.sender_id ?? ''}|${m.receiver_id ?? ''}|${ts}|${m.iv ?? ''}`;
+      }
+
+      const serverKeys = new Set(decryptedMessages.map(stableMessageKey));
+      const isMessageInThread = (m) =>
+        (m.sender_id === userID && m.receiver_id === user.id) ||
+        (m.receiver_id === userID && m.sender_id === user.id);
+
+      const liveOnly = (stateRef.current.messages || []).filter(
+        (m) => isMessageInThread(m) && !serverKeys.has(stableMessageKey(m))
+      );
+
+      const merged = [...decryptedMessages, ...liveOnly].sort((a, b) => {
+        const ta = typeof a.timestamp === 'number'
+          ? a.timestamp
+          : Math.floor(new Date(a.created_at).getTime() / 1000);
+        const tb = typeof b.timestamp === 'number'
+          ? b.timestamp
+          : Math.floor(new Date(b.created_at).getTime() / 1000);
+        return ta - tb;
+      });
+
+      if (currentOpenChatUserIdRef.current !== userID) {
+        return;
+      }
+
+      dispatch({ type: CHAT_ACTIONS.SET_MESSAGES, payload: merged });
     } catch (error) {
       dispatch({ type: CHAT_ACTIONS.SET_ERROR, payload: 'Không thể tải tin nhắn' });
     } finally {
@@ -249,6 +287,8 @@ export function ChatProvider({ children }) {
         text: decryptedText,
         sender_id,
         receiver_id,
+        timestamp,
+        iv,
         created_at: new Date(timestamp * 1000).toISOString(),
         isDecrypted: true
       };
@@ -283,9 +323,9 @@ export function ChatProvider({ children }) {
         payload: { userID: sender_id, text: decryptedText, timestamp, iv }
       });
 
-      // Read currentChat via ref — always fresh
-      const currentChatUserID = stateRef.current.currentChat?.user_id;
-      if (currentChatUserID === sender_id) {
+      // Prefer ref synced in setCurrentChat (before paint); stateRef lags one frame.
+      const openChatUserId = currentOpenChatUserIdRef.current;
+      if (openChatUserId === sender_id) {
         dispatch({ type: CHAT_ACTIONS.ADD_MESSAGE, payload: newMessage });
       } else {
         dispatch({
@@ -326,7 +366,7 @@ export function ChatProvider({ children }) {
     const connectWebSocket = () => {
       if (isCleanedUp) return;
 
-      const apiBase = process.env.REACT_APP_API_URL || 'http://192.168.2.10:8089';
+      const apiBase = (process.env.REACT_APP_API_URL || 'http://192.168.2.10:8089').replace(/\/$/, '');
       const wsBase = apiBase.replace(/^http/, 'ws');
       const wsUrl = `${wsBase}/api/ws/${user.id}`;
 
@@ -414,6 +454,8 @@ export function ChatProvider({ children }) {
         text: messageText,
         sender_id: user.id,
         receiver_id: receiverID,
+        timestamp,
+        iv,
         created_at: new Date(timestamp * 1000).toISOString(),
         isDecrypted: true
       };
@@ -433,6 +475,7 @@ export function ChatProvider({ children }) {
   }, [privateKey, user?.id]);
 
   const setCurrentChat = useCallback((chat) => {
+    currentOpenChatUserIdRef.current = chat?.user_id ?? null;
     dispatch({ type: CHAT_ACTIONS.SET_CURRENT_CHAT, payload: chat });
     if (chat) {
       loadMessages(chat.user_id);
